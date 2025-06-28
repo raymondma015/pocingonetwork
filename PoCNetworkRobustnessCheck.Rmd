@@ -1,0 +1,385 @@
+---
+title: "Robustness Check"
+subtitle: "of Centrality Measures"
+author: "Raymond Andaya"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: lumen
+    toc: true
+    number_sections: true
+    highlight: github
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style> body {text-align: justify} </style>
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(igraph)
+library(visNetwork)
+library(knitr)
+library(Hmisc)
+library(ggplot2)
+library(reshape2)
+library(corpcor)
+library(corrplot)
+```
+
+# Reading The Data
+
+I read the data 
+with the help of `readxl` library.
+
+The first 6 rows of data are shown below.
+
+```{r}
+#Read the file
+f <- read.csv("1107poc-edges.csv")
+
+kable(head(f),caption = "First 6 rows of dataset")
+```
+
+# Network Construction
+
+I construct the network. The information about network is shown
+below. There are 535 nodes and 6466 edges in the
+network.
+
+I computed network centrality measures. Centrality measures 
+for the first 10 nodes are shown in the Table below.
+
+```{r}
+g <- graph.data.frame(f,directed = F)
+g
+
+#Compute Centrality Measures
+df <- data.frame(Node = V(g)$name,
+                 Betweenness = as.vector(betweenness(g)),
+                 Eigen = as.vector(eigen_centrality(g)$vector))
+
+kable(head(df,10),caption = "Centrality Scores for the first 10 nodes")
+```
+
+# Basic Concept of Robustness in Centrality
+
+Let G be an undirected graph with vertix set `V(G)` and edge set `E(G)`.
+A centrality measure `c` is a real-valued function that assigns
+centrality values to all nodes in a graph and is invariant to
+structure-preserving mappings. That is, centrality values depend solely
+on the structure of a graph. External information (e.g., node or edge
+attributes) has no influence on the centrality values (Koschützki et al
+[1]). The centrality value for node `u ∈ V(G)` is denoted by `cG(u)` and
+the centrality values for all nodes in `G(u1, u2, ... , un)`, by the
+vector $$ c(G) := (c(u1), ... , c(un))$$ Let `G` and `G'` be two graphs
+and `c` a centrality measure. A pair of nodes `u, v ∈ V(G) ∩ V(G')` and
+`u != v` is called concordant w.r.t. `c` if both nodes have distinct
+centrality values and the order of `u` and `v` is the same in `c(G)` and
+`c(G')`. That is, either $$ cG(u) < cG(v) ;and; cG'(u) < cG'(v) $$
+
+or $$ cG(u) > cG(v) ;and; cG'(u) > cG'(v) $$
+
+A pair of nodes is called `discordant` if both nodes have distinct
+centrality values and the order of `u` and `v` in `c(G)` differs from
+the order of `u` and `v` in `c(G')`, that is, either
+$$ cG(u) < cG(v) and cG'(u) > cG'(v) $$
+
+or
+
+$$ cG(u) > cG(v) and cG'(u) < cG'(v) $$ Ties are neither concordant nor
+discordant.
+
+Network data can be influenced by a variety of different measurement
+errors. Wang et. al.[2] categorized measurement errors into different
+groups i.e., `false-negative`, `false-positive` (nodes and edges). For
+example, when 10% of the edges are missing in the measured network data,
+the graph constructed from this observed data suffers from
+`false-negative edges`.
+
+# Robustness Check
+
+Let `G` and `G'` denote graphs on the same vertex set and c a centrality
+measure. To measure the robustness of `c` with respect to these two graphs, I
+use Kendall's tau (`“tau-b”`) rank correlation coefficient (Kendall
+[3]). Correlations are commonly used to measure the robustness of
+centrality measures. Correlations are commonly used to measure the
+robustness of centrality measures. Like existing studies, we also used
+rank correlations to minimize the influence of outliers (Kim & Jeong
+[4]; Lee & Pfeffer[5]; Wang et al [6]). I calculate the robustness ρ
+for a centrality measure c with respect to `G` and `G'` as follows: \_
+$$ pc(G,G') = \frac{n_c-n_d}{\sqrt{(n_c+n_d+n_t)*(n_c+n_d+n_t')}} $$
+with `nc` as the number of concordant pairs and `nd` as the number of
+discordant pairs w.r.t. the order given by `c(G)` and `c(G')`. Ties only
+in `c(G)` are denoted by `nt`, ties only in `c(G')` by `nt'`. It follows
+that the values of `ρc(G, G')` are in the interval
+`[−1, 1]`.
+
+In network studies, the measured network data often contains sampling
+errors (Leecaster et al. [7]; Schulz [8]; Wang et al.[6]). The
+robustness concept helps describe this impact: given the measured
+network (after removing edges) `M`, the (unknown) hidden network
+(without removing edges) `H`, and a centrality measure `c`, the
+robustness `ρc(H, M)` measures the impact of the sampling error on the
+centrality values of the nodes in the measured network.
+
+The estimation approach is based on the observation that, given a graph
+`G`, a centrality measure, and some error procedure, in many experiments
+the robustness is nearly proportional to the error intensity. That is,
+removing `20%` of the edges, randomly, has about twice as much impact on
+the centrality measure as removing `10%` of the edges (Borgatti et al.
+[9]; Frantz et al. [10]; Wang et al. [6]). Now let `G'` denote the graph
+resulting from `G` by removing 10% of the edges, and let `G''` denote
+the graph resulting from `G'` by removing 10% of the remaining edges.
+One possible explanation for the observed linearity could be that the
+robustness with respect to G and `G'` is close to the robustness with
+respect to `G'` and `G''`, which is
+
+$$ ρc(G, G') ∼ ρc(G', G'') $$ In our experiment,
+
+-- first I removed `5%` edges and called it `g1`, -- then I removed
+`5%` more edges from `g1` and called it `g2`, -- further I removed `5%`
+more edges from `g2` and called it `g3`, -- lastly, I removed `5%`
+edges from `g3` and called it `g4`.
+
+I performed the 50 simulations of the above steps. In the end, I
+computed the average betweenness and eigenvector centarlity score for the 50
+simulations.
+
+# Robustness Check of Betweenness
+
+```{r}
+# Function to compute betweenness centrality
+GetBet <- function(g) {
+lst <- list()
+lst$g1 <- 0  
+lst$g2 <- 0
+lst$g3 <- 0
+lst$g4 <- 0
+for (i in 1:50) {
+g1 <- delete_edges(g,sample(E(g),as.integer(ecount(g)*0.05))) #Del 5% edges
+g2 <- delete_edges(g1,sample(E(g1),as.integer(ecount(g1)*0.05))) #Del 5% edges
+g3 <- delete_edges(g2,sample(E(g2),as.integer(ecount(g2)*0.05))) #Del 5% edges
+g4 <- delete_edges(g3,sample(E(g3),as.integer(ecount(g3)*0.05))) #Del 5% edges
+
+lst$g1 <- lst$g1 + betweenness(g1)  
+lst$g2 <- lst$g2 + betweenness(g2)
+lst$g3 <- lst$g3 + betweenness(g3)
+lst$g4 <- lst$g4 + betweenness(g4)
+}
+return(lst)
+}
+
+bet <- GetBet(g)
+bet$g <- betweenness(g)
+```
+
+## Kendal's Tau Correlation Calculation
+
+```{r}
+v <- vector()
+r=1
+for (i in 1:5) {
+  for (j in 1:5) {
+    v[r] <- cor.test(as.vector(bet[[i]]),as.vector(bet[[j]]),method = "kendall")$estimate[[1]]
+    r = r + 1
+  }
+}
+bet_kmat <- matrix(v,nrow = 5,ncol = 5)
+colnames(bet_kmat) <- c("G1","G2","G3","G4","G")
+rownames(bet_kmat) <- c("G1","G2","G3","G4","G")
+bet_kmat
+corrplot(bet_kmat,method = "number",type = "lower")
+```
+
+## Gamma Correlation Calculation
+
+```{r}
+v <- vector()
+r=1
+for (i in 1:5) {
+  for (j in 1:5) {
+    v[r] <- rcorr.cens(as.vector(bet[[i]]),as.vector(bet[[j]]),outx = T)[[2]]
+    r = r + 1
+  }
+}
+bet_gmat <- matrix(v,nrow = 5,ncol = 5)
+colnames(bet_gmat) <- c("G1","G2","G3","G4","G")
+rownames(bet_gmat) <- c("G1","G2","G3","G4","G")
+bet_gmat
+corrplot(bet_gmat,method = "number",type = "lower")
+```
+
+The output gives explicit data about the calculation
+being made, including pairs that were thrown out due to "ties", the
+number of concordant pairs, and so on. The most important piece of output
+here is correlation score, which is the gamma statistic. For this
+example, the generated data has a strong positive relationship (almost
+0.99). The Gamma correlation proves that the betweenness
+centrality do not have robust results. These results shows that top ranked
+nodes in the true network (G), are relatively the same top ranked nodes in
+the observed networks (G1...G4).
+
+I found the same in the case of Kendal's Correlation, where the data
+has a strong positive relationship.
+
+## Line chart for Gamma and Kendall Correlation
+
+The below charts shows the correlation of centrality score between the
+original network (G), and measured networks (G1...G4). This correlation
+helps to check the robustness of centrality scores. The Figures below
+shows the Kendall and Gamma correlation between centrality scores.
+
+```{r}
+df <- data.frame(Kendal = bet_kmat[,5],
+                 Gamma = bet_gmat[,5],
+                 Graph = rownames(bet_gmat))
+
+#Combine the data
+melted <- melt(df, id.vars=c("Graph"))
+
+p <- ggplot(melted, aes(Graph, value, color = variable)) +
+    geom_line(aes(group=paste0(variable))) + 
+    geom_point() + 
+    labs(title="Betweenness Centrality",
+         subtitle = "Correlation b/w Hidden (G) and Measured Graphs (G1...G4)",
+         x ="Graphs", y = "Correlation")
+p
+```
+
+# Robustness Check of Eigen Centrality
+
+The same procudre is used to check the robustness of eigenvector centrality.
+Here, I find the correlation between the eigenvector centrality of the original
+network and the measured networks.
+
+```{r}
+# Function to compute betweenness centrality
+GetEigen <- function(g) {
+lst <- list()
+lst$g1 <- 0  
+lst$g2 <- 0
+lst$g3 <- 0
+lst$g4 <- 0
+for (i in 1:50) {
+g1 <- delete_edges(g,sample(E(g),as.integer(ecount(g)*0.05))) #Del 5% edges
+g2 <- delete_edges(g1,sample(E(g1),as.integer(ecount(g1)*0.05))) #Del 5% edges
+g3 <- delete_edges(g2,sample(E(g2),as.integer(ecount(g2)*0.05))) #Del 5% edges
+g4 <- delete_edges(g3,sample(E(g3),as.integer(ecount(g3)*0.05))) #Del 5% edges
+
+lst$g1 <- lst$g1 + eigen_centrality(g1)$vector 
+lst$g2 <- lst$g2 + eigen_centrality(g2)$vector
+lst$g3 <- lst$g3 + eigen_centrality(g3)$vector
+lst$g4 <- lst$g4 + eigen_centrality(g4)$vector
+}
+return(lst)
+}
+
+eig <- GetEigen(g)
+eig$g <- eigen_centrality(g)$vector
+```
+
+## Kendal's Tau Correlation Calculation
+
+```{r}
+v <- vector()
+r=1
+for (i in 1:5) {
+  for (j in 1:5) {
+    v[r] <- cor.test(as.vector(eig[[i]]),as.vector(eig[[j]]),method = "kendall")$estimate[[1]]
+    r = r + 1
+  }
+}
+eig_kmat <- matrix(v,nrow = 5,ncol = 5)
+colnames(eig_kmat) <- c("G1","G2","G3","G4","G")
+rownames(eig_kmat) <- c("G1","G2","G3","G4","G")
+eig_kmat
+corrplot(eig_kmat,method = "number",type = "lower")
+```
+
+## Gamma Correlation Calculation
+
+```{r}
+v <- vector()
+r=1
+for (i in 1:5) {
+  for (j in 1:5) {
+    v[r] <- rcorr.cens(as.vector(eig[[i]]),as.vector(eig[[j]]),outx = T)[[2]]
+    r = r + 1
+  }
+}
+eig_gmat <- matrix(v,nrow = 5,ncol = 5)
+colnames(eig_gmat) <- c("G1","G2","G3","G4","G")
+rownames(eig_gmat) <- c("G1","G2","G3","G4","G")
+eig_gmat
+corrplot(eig_gmat,method = "number",type = "lower")
+```
+
+In the Correlation, I found the same results as did in for
+betweenness centrality. The data shows a strong positive correlation.
+
+## Line chart for Gamma and Kendall Correlation
+
+```{r}
+df <- data.frame(Kendal = eig_kmat[,5],
+                 Gamma = eig_gmat[,5],
+                 Graph = rownames(eig_gmat))
+
+#Combine the data
+melted <- melt(df, id.vars=c("Graph"))
+
+p <- ggplot(melted, aes(Graph, value, color = variable)) +
+    geom_line(aes(group=paste0(variable))) + 
+    geom_point() + 
+    labs(title="Eigen Centrality",
+         subtitle = "Correlation b/w Hidden (G) and Measured Graphs (G1...G4)",
+         x ="Graphs", y = "Correlation")
+p
+```
+
+
+# References
+
+[1] Koschützki, D., Lehmann, K., & Peeters, L. (2005). Centrality
+Indices. In U. Brandes, & T. Erlebach (eds.), Network Analysis:
+Methodological Foundations, 16--61. Springer Berlin Heidelberg.
+
+[2] Wang, C., Butts, C. T., Hipp, J. R., Jose, R., & Lakon, C. M.
+(2016). Multiple imputation for missing edge data: A predictive
+evaluation method with application to Add Health. Social Networks, 45,
+89--98.
+
+[3] Kendall, M. G. (1945). The treatment of ties in ranking problems.
+Biometrika, 33(3), 239--251.
+
+[4] Kim, P. J., & Jeong, H. (2007). Reliability of rank order in sampled
+networks. European Physical Journal b, 55(1), 109--114
+
+[5] Lee, J.-S., & Pfeffer, J. (2015). Robustness of network centrality
+metrics in the context of digital communication data. In Proceedings of
+the 48th Hawaii international conference on system sciences.
+
+[6] Wang, D. J., Shi, X., McFarland, D. A., & Leskovec, J. (2012).
+Measurement error in network data: A re-classification. Social Networks,
+34(4), 396--409.
+
+[7] Leecaster, M., Toth, D. J. A., Pettey, W. B. P., Rainey, J. J., Gao,
+H., Uzicanin, A., & Samore, M. (2016). Estimates of social contact in a
+middle school based on self-report and wireless sensor data. Plos One,
+11(4).
+
+[8] Schulz, J. (2016). Using Monte Carlo simulations to assess the
+impact of author name disambiguation quality on different bibliometric
+analyses. Scientometrics, 107(3), 1283--1298.
+
+[9] Borgatti, S. P., Carley, K. M., & Krackhardt, D. (2006). On the
+robustness of centrality measures under conditions of imperfect data.
+Social Networks, 28(2), 124--136.
+
+[10] Frantz, T. L., Cataldo, M., & Carley, K. M. (2009). Robustness of
+centrality measures under uncertainty: Examining the role of network
+topology. Computational and Mathematical Organization Theory, 15(4),
+303--328.
